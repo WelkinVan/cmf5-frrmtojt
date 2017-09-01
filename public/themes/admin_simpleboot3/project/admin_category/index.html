@@ -1,0 +1,47 @@
+<!-- 调用后台头部文件 -->
+<include file="public@header"/>
+</head>
+<body>
+<!--后台当前应用的操作的菜单-->
+<div class="wrap js-check-wrap">
+    <ul class="nav nav-tabs">
+        <li class="active"><a href="javascript:;">所有分类</a></li>
+        <li><a href="{:url('AdminCategory/add')}">添加分类</a></li>
+    </ul>
+    <form method="post" class="js-ajax-form" action="{:url('AdminCategory/listOrder')}">
+        <div class="table-actions">
+            <button type="submit" class="btn btn-primary btn-sm js-ajax-submit">{:lang('SORT')}</button>
+        </div>
+        <table class="table table-hover table-bordered table-list">
+            <thead>
+            <tr>
+                <th width="50">排序</th>
+                <th width="50">ID</th>
+                <th>分类名称</th>
+                <th>描述</th>
+                <th width="180">操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {$category_tree}
+            </tbody>
+            <tfoot>
+            <tr>
+                <th width="50">排序</th>
+                <th width="50">ID</th>
+                <th>分类名称</th>
+                <th>描述</th>
+                <th width="180">操作</th>
+            </tr>
+            </tfoot>
+        </table>
+        <div class="table-actions">
+            <button type="submit" class="btn btn-primary btn-sm js-ajax-submit">{:lang('SORT')}</button>
+        </div>
+    </form>
+</div>
+
+<!--调用后台js文件-->
+<script src="__STATIC__/js/admin.js"></script>
+</body>
+</html>
