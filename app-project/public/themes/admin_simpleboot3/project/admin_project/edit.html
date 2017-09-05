@@ -30,40 +30,46 @@
 <div class="wrap js-check-wrap">
     <ul class="nav nav-tabs">
         <li><a href="{:url('AdminProject/index')}">项目管理</a></li>
-        <li class="active"><a href="{:url('AdminProject/add')}">添加项目</a></li>
+        <li>
+            <a href="{:url('AdminProject/add')}">添加项目</a>
+        </li>
+        <li class="active"><a href="#">编辑项目</a></li>
     </ul>
-    <form action="{:url('AdminProject/addPost')}" method="post" class="form-horizontal js-ajax-form margin-top-20">
+    <form action="{:url('AdminProject/editPost')}" method="post" class="form-horizontal js-ajax-form margin-top-20">
         <div class="row">
             <div class="col-md-9">
                 <table class="table table-bordered">
                     <tr>
                         <th width="100">分类</th>
                         <td>
-                            <input class="form-control" type="text" style="width:500px;" required value=""
+                            <input class="form-control" type="text" style="width:500px;" required
+                                   value="{:implode(' ',$post_categories)}"
                                    placeholder="请选择分类" onclick="doSelectCategory();" id="js-categories-name-input"
                                    readonly/>
-                            <input class="form-control" type="hidden" value="" name="post[categories]"
+                            <input class="form-control" type="hidden" value="{$post_category_ids}"
+                                   name="post[categories]"
                                    id="js-categories-id-input"/>
                         </td>
                     </tr>
                     <tr>
                         <th>标题<span class="form-required">*</span></th>
                         <td>
+                            <input type="hidden" name="post[id]" value="{$post.id}">
                             <input class="form-control" type="text" name="post[post_title]"
-                                   id="title" required value="" placeholder="请输入标题"/>
+                                   required value="{$post.post_title}" placeholder="请输入标题"/>
                         </td>
                     </tr>
                     <tr>
                         <th>关键词</th>
                         <td>
-                            <input class="form-control" type="text" name="post[post_keywords]" id="keywords" value=""
-                                   placeholder="请输入关键字">
+                            <input class="form-control" type="text" name="post[post_keywords]"
+                                   value="{$post['post_keywords']}" placeholder="请输入关键字">
                             <p class="help-block">多关键词之间用英文逗号隔开</p>
                         </td>
                     </tr>
                     <tr>
                         <th>网址</th>
-                        <td><input class="form-control" type="text" name="post[post_url]" id="url" value=""
+                        <td><input class="form-control" type="text" name="post[post_url]" id="url" value="{$post['post_url']}"
                                    placeholder="输入网站URL"></td>
                     </tr>
                     <tr>
@@ -84,74 +90,115 @@
                         <th>描述</th>
                         <td>
                             <textarea class="form-control" name="post[post_excerpt]" style="height: 50px;"
-                                      placeholder="请填写摘要"></textarea>
+                                      placeholder="请填写摘要">{$post.post_excerpt}</textarea>
                         </td>
                     </tr>
                     <tr>
                         <th>内容</th>
                         <td>
-                            <script type="text/plain" id="content" name="post[post_content]"></script>
+                            <script type="text/plain" id="content" name="post[post_content]">{$post.post_content}</script>
                         </td>
                     </tr>
                     <tr>
                         <th>相册</th>
                         <td>
-                            <ul id="photos" class="pic-list list-unstyled form-inline"></ul>
+                            <ul id="photos" class="pic-list list-unstyled form-inline">
+                                <notempty name="post.more.photos">
+                                    <foreach name="post.more.photos" item="vo">
+                                        <php>$img_url=cmf_get_image_preview_url($vo['url']);</php>
+                                        <li id="saved-image{$key}">
+                                            <input id="photo-{$key}" type="hidden" name="photo_urls[]"
+                                                   value="{$vo.url}">
+                                            <input class="form-control" id="photo-{$key}-name" type="text"
+                                                   name="photo_names[]"
+                                                   value="{$vo.name|default=''}" style="width: 200px;" title="图片名称">
+                                            <img id="photo-{$key}-preview"
+                                                 src="{:cmf_get_image_preview_url($vo['url'])}"
+                                                 style="height:36px;width: 36px;"
+                                                 onclick="parent.imagePreviewDialog(this.src);">
+                                            <a href="javascript:uploadOneImage('图片上传','#photo-{$key}');">替换</a>
+                                            <a href="javascript:(function(){$('#saved-image{$key}').remove();})();">移除</a>
+                                        </li>
+                                    </foreach>
+                                </notempty>
+                            </ul>
                             <a href="javascript:uploadMultiImage('图片上传','#photos','photos-item-tpl');"
-                               class="btn btn-default btn-sm">选择图片</a>
+                               class="btn btn-sm btn-default">选择图片</a>
                         </td>
                     </tr>
                     <tr>
                         <th>附件</th>
                         <td>
                             <ul id="files" class="pic-list list-unstyled form-inline">
+                                <notempty name="post.more.files">
+                                    <foreach name="post.more.files" item="vo">
+                                        <php>$file_url=cmf_get_file_download_url($vo['url']);</php>
+                                        <li id="saved-file{$key}">
+                                            <input id="file-{$key}" type="hidden" name="file_urls[]"
+                                                   value="{$vo.url}">
+                                            <input class="form-control" id="file-{$key}-name" type="text"
+                                                   name="file_names[]"
+                                                   value="{$vo.name}" style="width: 200px;" title="图片名称">
+                                            <a id="file-{$key}-preview" href="{$file_url}" target="_blank">下载</a>
+                                            <a href="javascript:uploadOne('图片上传','#file-{$key}');">替换</a>
+                                            <a href="javascript:(function(){$('#saved-file{$key}').remove();})();">移除</a>
+                                        </li>
+                                    </foreach>
+                                </notempty>
                             </ul>
                             <a href="javascript:uploadMultiFile('附件上传','#files','files-item-tpl');"
                                class="btn btn-sm btn-default">选择文件</a>
                         </td>
                     </tr>
                 </table>
-                <div class="form-group">
-                    <div class="col-sm-offset-2 col-sm-10">
-                        <button type="submit" class="btn btn-primary js-ajax-submit">{:lang('ADD')}</button>
-                        <a class="btn btn-default" href="{:url('AdminArticle/index')}">{:lang('BACK')}</a>
-                    </div>
-                </div>
             </div>
             <div class="col-md-3">
                 <table class="table table-bordered">
                     <tr>
-                        <th><b>缩略图</b></th>
+                        <th>缩略图</th>
                     </tr>
                     <tr>
                         <td>
                             <div style="text-align: center;">
-                                <input type="hidden" name="post[more][thumbnail]" id="thumbnail" value="">
+                                <input type="hidden" name="post[more][thumbnail]" id="thumbnail"
+                                       value="{$post.more.thumbnail|default=''}">
                                 <a href="javascript:uploadOneImage('图片上传','#thumbnail');">
-                                    <img src="__TMPL__/public/assets/images/default-thumbnail.png"
-                                         id="thumbnail-preview"
-                                         width="135" style="cursor: pointer"/>
+                                    <if condition="empty($post.more.thumbnail)">
+                                        <img src="__TMPL__/public/assets/images/default-thumbnail.png"
+                                             id="thumbnail-preview"
+                                             width="135" style="cursor: pointer"/>
+                                        <else/>
+                                        <img src="{:cmf_get_image_preview_url($post.more.thumbnail)}"
+                                             id="thumbnail-preview"
+                                             width="135" style="cursor: pointer"/>
+                                    </if>
                                 </a>
                                 <input type="button" class="btn btn-sm btn-cancel-thumbnail" value="取消图片">
                             </div>
                         </td>
                     </tr>
                     <tr>
-                        <th><b>发布时间</b></th>
+                        <th>发布时间</th>
                     </tr>
                     <tr>
                         <td>
                             <input class="form-control js-bootstrap-datetime" type="text" name="post[published_time]"
-                                   value="{:date('Y-m-d H:i:s',time())}">
+                                   value="{:date('Y-m-d H:i',$post['create_time'])}">
                         </td>
                     </tr>
+
                     <tr>
-                        <th><b>状态</b></th>
+                        <th>状态</th>
+                        <php>
+                            $status_yes=$post['post_status']==1?"checked":"";
+                        </php>
                     </tr>
                     <tr>
                         <td>
                             <div class="checkbox">
-                                <label><input type="checkbox" name="post[post_status]" value="1" checked>发布</label>
+                                <label>
+                                    <input type="checkbox" name="post[post_status]" value="1" {$status_yes}>发布
+                                </label>
                             </div>
                         </td>
                     </tr>
@@ -163,7 +210,7 @@
                         <td>
                             <select class="form-control" name="post[more][template]" id="more-template-select">
                                 <option value="">请选择模板</option>
-                                <foreach name="project_theme_files" item="vo">
+                                <foreach name="article_theme_files" item="vo">
                                     <php>$value=preg_replace('/^portal\//','',$vo['file']);</php>
                                     <option value="{$value}">{$vo.file}.html</option>
                                 </foreach>
@@ -171,6 +218,12 @@
                         </td>
                     </tr>
                 </table>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <button type="submit" class="btn btn-primary js-ajax-submit">{:lang('SAVE')}</button>
+                <a class="btn btn-default" href="javascript:history.back(-1);">{:lang('BACK')}</a>
             </div>
         </div>
     </form>
@@ -196,17 +249,19 @@
             $('#thumbnail-preview').attr('src', '__TMPL__/public/assets/images/default-thumbnail.png');
             $('#thumbnail').val('');
         });
+
+        $('#more-template-select').val("{$post.more.template|default=''}");
     });
 
     function doSelectCategory() {
         var selectedCategoriesId = $('#js-categories-id-input').val();
-        openIframeLayer("{:url('Project/AdminCategory/select')}?ids=" + selectedCategoriesId, '请选择分类', {
+        openIframeLayer("{:url('AdminCategory/select')}?ids=" + selectedCategoriesId, '请选择分类', {
             area: ['700px', '400px'],
             btn: ['确定', '取消'],
             yes: function (index, layero) {
                 //do something
 
-                var iframeWin = window[layero.find('iframe')[0]['name']];
+                var iframeWin          = window[layero.find('iframe')[0]['name']];
                 var selectedCategories = iframeWin.confirm();
                 if (selectedCategories.selectedCategoriesId.length == 0) {
                     layer.msg('请选择分类');

@@ -11,8 +11,10 @@ namespace app\project\controller;
 //继承CMF5的AdminBase控制器用于一些后台基础控制
 use cmf\controller\AdminBaseController;
 //引入该应用的方法库
+use app\admin\model\ThemeModel;
 use app\project\service\ProjectService;
 use app\project\model\ProjectCategoryModel;
+use app\project\model\ProjectPostModel;
 
 class AdminProjectController extends AdminBaseController
 {
@@ -67,6 +69,7 @@ class AdminProjectController extends AdminBaseController
         if ($this->request->isPost()) {
             //获取所有提交的参数
             $data = $this->request->param();
+
             $post = $data['post'];
             //将提交的数据进行合法性检测，采用的的是TP5的validate类验证规则https://www.kancloud.cn/manual/thinkphp5/129352
             $result = $this->validate($post, 'ProjectPost');
@@ -75,9 +78,14 @@ class AdminProjectController extends AdminBaseController
             }
 
             //实例化项目模型
-            $projectPostModel = new PorjectPostModel();
+            $projectPostModel = new ProjectPostModel();
 
-            //是否有相册，有相册的话在more中撞见对应photos数组
+            //创建终端设备字符串
+            if (!empty($data['post']['post_device'])) {
+                $data['post']['post_device']=implode(',',$data['post']['post_device']);
+            }
+
+            //是否有相册，有相册的话在more中创建对应photos数组
             if (!empty($data['photo_names']) && !empty($data['photo_urls'])) {
                 $data['post']['more']['photos'] = [];
                 foreach ($data['photo_urls'] as $key => $url) {
@@ -86,7 +94,7 @@ class AdminProjectController extends AdminBaseController
                 }
             }
 
-            //是否有文件，有附件的话在more中撞见对应files数组
+            //是否有文件，有附件的话在more中创建对应files数组
             if (!empty($data['file_names']) && !empty($data['file_urls'])) {
                 $data['post']['more']['files'] = [];
                 foreach ($data['file_urls'] as $key => $url) {
@@ -95,8 +103,8 @@ class AdminProjectController extends AdminBaseController
                 }
             }
 
-            //调用模型中adminAddProject方法，写数据库
-            $projectPostModel->adminAddProjcet($data['post'], $data['post']['categories']);
+            //调用模型中adminProjectPost方法，分类写数据库
+            $projectPostModel->adminProjectPost($data['post'], $data['post']['categories']);
 
             //添加成功后返回到这个添加的编辑模式
             $this->success('添加成功!', url('AdminProject/edit', ['id' => $projectPostModel->id]));
@@ -104,24 +112,17 @@ class AdminProjectController extends AdminBaseController
     }
 
     /**
-     * 编辑文章
-     * @adminMenu(
-     *     'name'   => '编辑文章',
-     *     'parent' => 'index',
-     *     'display'=> false,
-     *     'hasView'=> true,
-     *     'order'  => 10000,
-     *     'icon'   => '',
-     *     'remark' => '编辑文章',
-     *     'param'  => ''
-     * )
+     * 编辑项目文章
      */
     public function edit()
     {
+        //获取需要修改的ID号
         $id = $this->request->param('id', 0, 'intval');
 
-        $portalPostModel = new PortalPostModel();
-        $post = $portalPostModel->where('id', $id)->find();
+        //实例化项目模型，将对应ID的文章找出来
+        $projectPostModel = new ProjectPostModel();
+        $post = $projectPostModel->where('id', $id)->find();
+
         $postCategories = $post->categories()->alias('a')->column('a.name', 'a.id');
         $postCategoryIds = implode(',', array_keys($postCategories));
 

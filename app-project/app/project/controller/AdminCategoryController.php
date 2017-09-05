@@ -196,4 +196,41 @@ class AdminCategoryController extends AdminBaseController
             $this->error('删除失败');
         }
     }
+
+    /**
+     * 分类选择对话框
+     */
+    public function select()
+    {
+        //获取参数ID，并转成数组
+        $ids = $this->request->param('ids');
+        $selectedIds = explode(',', $ids);
+
+        //实例化项目分类模型
+        $projectCategoryModel = new ProjectCategoryModel();
+
+        //生成对应的选择列表
+        //长字符串定义  百度“php 长字符串 Heredoc”
+        //如：http://www.php100.com/html/webkaifa/PHP/PHPyingyong/2010/1229/7164.html
+        $tpl = <<<tpl
+<tr class='data-item-tr'>
+    <td>
+        <input type='checkbox' class='js-check' data-yid='js-check-y' data-xid='js-check-x' name='ids[]'
+               value='\$id' data-name='\$name' \$checked>
+    </td>
+    <td>\$id</td>
+    <td>\$spacer \$name</td>
+</tr>
+tpl;
+        //调用模型中生成分类的table格式的树形结构的方法
+        $categoryTree = $projectCategoryModel->adminCategoryTableTree($selectedIds, $tpl);
+        $where = ['delete_time' => 0];
+        $categories = $projectCategoryModel->where($where)->select();
+
+        //变量扔模板去
+        $this->assign('categories', $categories);
+        $this->assign('selectedIds', $selectedIds);
+        $this->assign('categories_tree', $categoryTree);
+        return $this->fetch();
+    }
 }
