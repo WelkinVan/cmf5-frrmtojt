@@ -16,6 +16,8 @@ use app\project\service\ProjectService;
 use app\project\model\ProjectCategoryModel;
 use app\project\model\ProjectPostModel;
 
+use think\Db;
+
 class AdminProjectController extends AdminBaseController
 {
     /**
@@ -82,7 +84,9 @@ class AdminProjectController extends AdminBaseController
 
             //创建终端设备字符串
             if (!empty($data['post']['post_device'])) {
-                $data['post']['post_device']=implode(',',$data['post']['post_device']);
+                $data['post']['post_device'] = implode(',', $data['post']['post_device']);
+            } else {
+                $data['post']['post_device'] = '';
             }
 
             //是否有相册，有相册的话在more中创建对应photos数组
@@ -123,11 +127,15 @@ class AdminProjectController extends AdminBaseController
         $projectPostModel = new ProjectPostModel();
         $post = $projectPostModel->where('id', $id)->find();
 
+        //根据文章表（project_post）查询出来的ID，从关联表文章类别关联表（project_category_post）中获取所有文章所在的名称和ID,并根据查询的键名【array_keys()】生成新的ID字符串
         $postCategories = $post->categories()->alias('a')->column('a.name', 'a.id');
         $postCategoryIds = implode(',', array_keys($postCategories));
 
+        //实例化模板文件，获取对应模板变量参数
         $themeModel = new ThemeModel();
-        $articleThemeFiles = $themeModel->getActionThemeFiles('portal/Article/index');
+        $articleThemeFiles = $themeModel->getActionThemeFiles('project/Article/index');
+
+        //将各个值扔回前台模板
         $this->assign('article_theme_files', $articleThemeFiles);
         $this->assign('post', $post);
         $this->assign('post_categories', $postCategories);
@@ -137,17 +145,7 @@ class AdminProjectController extends AdminBaseController
     }
 
     /**
-     * 编辑文章提交
-     * @adminMenu(
-     *     'name'   => '编辑文章提交',
-     *     'parent' => 'index',
-     *     'display'=> false,
-     *     'hasView'=> false,
-     *     'order'  => 10000,
-     *     'icon'   => '',
-     *     'remark' => '编辑文章提交',
-     *     'param'  => ''
-     * )
+     * 编辑项目文章提交
      */
     public function editPost()
     {
@@ -161,8 +159,18 @@ class AdminProjectController extends AdminBaseController
                 $this->error($result);
             }
 
+            //时间戳处理，转换成时间戳
+            $data['post']['create_time'] = strtotime($post['create_time']);
+
             //实例化项目文章表
             $projectPostModel = new ProjectPostModel();
+
+            //创建终端设备字符串
+            if (!empty($data['post']['post_device'])) {
+                $data['post']['post_device'] = implode(',', $data['post']['post_device']);
+            } else {
+                $data['post']['post_device'] = '';
+            }
 
             //判断是否有提交组图相册，MORE参数是扩展参数，各种自己想加的都能按照json格式存进来
             if (!empty($data['photo_names']) && !empty($data['photo_urls'])) {
@@ -181,63 +189,66 @@ class AdminProjectController extends AdminBaseController
                     array_push($data['post']['more']['files'], ["url" => $fileUrl, "name" => $data['file_names'][$key]]);
                 }
             }
+            //dump($data);
+            //dump($post);
 
             //数据提交到模型中进行处理
-            $projectPostModel->adminProjectPost($data['post'], $data['post']['categories']);
+            $projectPostModel->adminProjectEdit($data['post'], $data['post']['categories']);
 
             //提交成功提示
             $this->success('保存成功!');
-
         }
     }
 
     /**
-     * 文章删除
-     * @adminMenu(
-     *     'name'   => '文章删除',
-     *     'parent' => 'index',
-     *     'display'=> false,
-     *     'hasView'=> false,
-     *     'order'  => 10000,
-     *     'icon'   => '',
-     *     'remark' => '文章删除',
-     *     'param'  => ''
-     * )
+     * 项目文章删除
      */
     public function delete()
     {
+        //获取删除的对应参数
         $param = $this->request->param();
-        $portalPostModel = new PortalPostModel();
 
+        //实例化模型
+        $projectPostModel = new ProjectPostModel();
+
+        //参数中是否存在ID，是的话单个删除
         if (isset($param['id'])) {
             $id = $this->request->param('id', 0, 'intval');
-            $result = $portalPostModel->where(['id' => $id])->find();
+
+            //找到这个ID的文章，生成出回收表的字段数据（这个是沿用了CMF5原来的删除规则）
+            $result = $projectPostModel->where(['id' => $id])->find();
             $data = [
                 'object_id' => $result['id'],
                 'create_time' => time(),
-                'table_name' => 'portal_post',
+                'table_name' => 'project_post',
                 'name' => $result['post_title']
             ];
-            $resultPortal = $portalPostModel
+            //删除，CMF5默认的删除是将对应的delete_time设置成当前时间，如果是0就是不删除。
+            $resultProject = $projectPostModel
                 ->where(['id' => $id])
                 ->update(['delete_time' => time()]);
-            if ($resultPortal) {
+
+            //删除成功后在recycleBin表中记录对应的删除信息，记得use think\Db;
+            if ($resultProject) {
                 Db::name('recycleBin')->insert($data);
             }
             $this->success("删除成功！", '');
-
         }
-
+        //参数中是否存在ids，是的话批量删除
         if (isset($param['ids'])) {
+            //获取IDS，然后将所有的文章找出来
             $ids = $this->request->param('ids/a');
-            $recycle = $portalPostModel->where(['id' => ['in', $ids]])->select();
-            $result = $portalPostModel->where(['id' => ['in', $ids]])->update(['delete_time' => time()]);
+            $recycle = $projectPostModel->where(['id' => ['in', $ids]])->select();
+            //将找出来的文章删除
+            $result = $projectPostModel->where(['id' => ['in', $ids]])->update(['delete_time' => time()]);
+
+            //删除成功的话，通过循环将每个ID的数据写入到recycleBin表中记录下
             if ($result) {
                 foreach ($recycle as $value) {
                     $data = [
                         'object_id' => $value['id'],
                         'create_time' => time(),
-                        'table_name' => 'portal_post',
+                        'table_name' => 'project_post',
                         'name' => $value['post_title']
                     ];
                     Db::name('recycleBin')->insert($data);
@@ -246,143 +257,4 @@ class AdminProjectController extends AdminBaseController
             }
         }
     }
-
-    /**
-     * 文章发布
-     * @adminMenu(
-     *     'name'   => '文章发布',
-     *     'parent' => 'index',
-     *     'display'=> false,
-     *     'hasView'=> false,
-     *     'order'  => 10000,
-     *     'icon'   => '',
-     *     'remark' => '文章发布',
-     *     'param'  => ''
-     * )
-     */
-    public function publish()
-    {
-        $param = $this->request->param();
-        $portalPostModel = new PortalPostModel();
-
-        if (isset($param['ids']) && isset($param["yes"])) {
-            $ids = $this->request->param('ids/a');
-
-            $portalPostModel->where(['id' => ['in', $ids]])->update(['post_status' => 1, 'published_time' => time()]);
-
-            $this->success("发布成功！", '');
-        }
-
-        if (isset($param['ids']) && isset($param["no"])) {
-            $ids = $this->request->param('ids/a');
-
-            $portalPostModel->where(['id' => ['in', $ids]])->update(['post_status' => 0]);
-
-            $this->success("取消发布成功！", '');
-        }
-
-    }
-
-    /**
-     * 文章置顶
-     * @adminMenu(
-     *     'name'   => '文章置顶',
-     *     'parent' => 'index',
-     *     'display'=> false,
-     *     'hasView'=> false,
-     *     'order'  => 10000,
-     *     'icon'   => '',
-     *     'remark' => '文章置顶',
-     *     'param'  => ''
-     * )
-     */
-    public function top()
-    {
-        $param = $this->request->param();
-        $portalPostModel = new PortalPostModel();
-
-        if (isset($param['ids']) && isset($param["yes"])) {
-            $ids = $this->request->param('ids/a');
-
-            $portalPostModel->where(['id' => ['in', $ids]])->update(['is_top' => 1]);
-
-            $this->success("置顶成功！", '');
-
-        }
-
-        if (isset($_POST['ids']) && isset($param["no"])) {
-            $ids = $this->request->param('ids/a');
-
-            $portalPostModel->where(['id' => ['in', $ids]])->update(['is_top' => 0]);
-
-            $this->success("取消置顶成功！", '');
-        }
-    }
-
-    /**
-     * 文章推荐
-     * @adminMenu(
-     *     'name'   => '文章推荐',
-     *     'parent' => 'index',
-     *     'display'=> false,
-     *     'hasView'=> false,
-     *     'order'  => 10000,
-     *     'icon'   => '',
-     *     'remark' => '文章推荐',
-     *     'param'  => ''
-     * )
-     */
-    public function recommend()
-    {
-        $param = $this->request->param();
-        $portalPostModel = new PortalPostModel();
-
-        if (isset($param['ids']) && isset($param["yes"])) {
-            $ids = $this->request->param('ids/a');
-
-            $portalPostModel->where(['id' => ['in', $ids]])->update(['recommended' => 1]);
-
-            $this->success("推荐成功！", '');
-
-        }
-        if (isset($param['ids']) && isset($param["no"])) {
-            $ids = $this->request->param('ids/a');
-
-            $portalPostModel->where(['id' => ['in', $ids]])->update(['recommended' => 0]);
-
-            $this->success("取消推荐成功！", '');
-
-        }
-    }
-
-    /**
-     * 文章排序
-     * @adminMenu(
-     *     'name'   => '文章排序',
-     *     'parent' => 'index',
-     *     'display'=> false,
-     *     'hasView'=> false,
-     *     'order'  => 10000,
-     *     'icon'   => '',
-     *     'remark' => '文章排序',
-     *     'param'  => ''
-     * )
-     */
-    public function listOrder()
-    {
-        parent::listOrders(Db::name('portal_category_post'));
-        $this->success("排序更新成功！", '');
-    }
-
-    public function move()
-    {
-
-    }
-
-    public function copy()
-    {
-
-    }
-
-
 }

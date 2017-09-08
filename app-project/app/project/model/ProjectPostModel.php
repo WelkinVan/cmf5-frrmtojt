@@ -10,6 +10,25 @@ class ProjectPostModel extends Model
     // 开启自动写入时间戳字段
     protected $autoWriteTimestamp = true;
 
+    /**
+     * post_content 自动转化
+     * @param $value
+     * @return string
+     */
+    public function getPostContentAttr($value)
+    {
+        return cmf_replace_content_file_url(htmlspecialchars_decode($value));
+    }
+
+    /**
+     * post_content 自动转化
+     * @param $value
+     * @return string
+     */
+    public function setPostContentAttr($value)
+    {
+        return htmlspecialchars(cmf_replace_content_file_url(htmlspecialchars_decode($value), true));
+    }
 
     /**
      * 关联分类表
@@ -57,6 +76,56 @@ class ProjectPostModel extends Model
         return $this;
     }
 
+    /**
+     * 后台管理编辑项目文章
+     */
+    public function adminProjectEdit($data, $categories)
+    {
+
+        //销毁修改文章的用户信息，默认保存时第一次发布的人，如果有需要可以加个表，记录每次修改是哪个管理员
+        unset($data['user_id']);
+
+        //缩略图地址处理
+        if (!empty($data['more']['thumbnail'])) {
+            $data['more']['thumbnail'] = cmf_asset_relative_url($data['more']['thumbnail']);
+        }
+
+        //检测发布状态，没勾选则0，勾选了就1
+        $data['post_status'] = empty($data['post_status']) ? 0 : 1;
+
+        //字段合法性验证，验证完后写数据库
+        $this->allowField(true)->isUpdate(true)->data($data, true)->save();
+
+
+        //新的分类处理,处理机制是：对比新旧2个ID序列，找出相同部分，新增部分和变化部分，然后删除变化部分，插入新增部分
+        if (is_string($categories)) {
+            $categories = explode(',', $categories);
+        }
+
+        $oldCategoryIds = $this->categories()->column('category_id');
+        $sameCategoryIds = array_intersect($categories, $oldCategoryIds);
+        $needDeleteCategoryIds = array_diff($oldCategoryIds, $sameCategoryIds);
+        $newCategoryIds = array_diff($categories, $sameCategoryIds);
+
+
+        //数据库操作部分，采用SplObjectStorage类，http://php.net/manual/en/class.splobjectstorage.php
+        //变化部分的id节点全部删除
+        if (!empty($needDeleteCategoryIds)) {
+            $this->categories()->detach($needDeleteCategoryIds);
+        }
+
+        //插入新增的id节点
+        if (!empty($newCategoryIds)) {
+            $this->categories()->attach(array_values($newCategoryIds));
+        }
+
+        //处理下输入的关键词中文逗号，然后将关键词同步写入到标签云
+        $data['post_keywords'] = str_replace('，', ',', $data['post_keywords']);
+        $keywords = explode(',', $data['post_keywords']);
+        $this->addTags($keywords, $data['id']);
+
+        return $this;
+    }
 
     /**
      * 添加到标签
